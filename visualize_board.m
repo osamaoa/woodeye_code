@@ -7,7 +7,7 @@ addpath(genpath('src'));
 projectDir = 'M:\WoodEye5_NyStruktur\Musaab_aau_patch1'; 
 
 % Board to visualize (Index)
-targetBoardIndex = 3; 
+targetBoardIndex = 1; 
 
 % --- Visualization Settings ---
 target_arrows_length = 300; % Fiber density along length

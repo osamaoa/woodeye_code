@@ -12,7 +12,7 @@ config = struct();
 
 % --- Input Paths ---
 % Path to the project root folder
-config.projectDir = 'M:\WoodEye5_NyStruktur\Musaab_aau_patch1'; 
+config.projectDir = 'M:\WoodEye5_NyStruktur\Musaab_aau_patch3'; 
 
 % --- Image Appearance Settings ---
 config.clean_shift_px = 75;       % Pixels to crop significantly from top/bottom
