@@ -4,17 +4,20 @@ This project contains a refactored and optimized MATLAB pipeline for processing 
 
 ## Key Features
 
-### 1. High Performance
+### 1. Automated Data Management
+-   **Automatic Organization**: The pipeline is designed to handle raw input data automatically. It expects raw scanner data (e.g., in a `Raw` subfolder) and simulation results (in `simulation`). The system detects these inputs and automatically indexes and structures them into a standardized `organized` directory (`organized/B_XXX/...`), eliminating the need for manual file management.
+
+### 2. High Performance
 -   **Parallel Processing**: Automatically switches to `parfor` (parallel loops) when visualization is disabled (`showFigs = false`), utilizing all CPU cores.
 -   **Fast I/O**: Refactored data loading (`loadWoodEyeData`) uses `textscan` instead of `dlmread`, resulting in significantly faster import times.
 -   **Optimized Indexing**: Scans the project directory structure **once** at startup instead of recursively searching for every board.
 
-### 2. Enhanced Image Processing
+### 3. Enhanced Image Processing
 -   **Configurable Cleaning**: Parameters to fine-tune background removal.
 -   **Exposure Adjustment**: `config.exposure_gain` allows brightening of underexposed images post-processing.
 -   **Feed Direction Handling**: `config.feed_direction` ('root_first' or 'top_first') handles board orientation, automatically rotating images and data plots 180 degrees if needed.
 
-### 3. Visualization
+### 4. Interactive Visualization
 The analysis generates three key figures for each board:
 -   **Figure 1: 3D Board Model**: An interactive 3D representation of the board showing all four sides. It features zoom and scroll controls (`<<<`, `>>>`) to traverse the board length in detail.
 -   **Figure 2: Unfolded View**: Displays the four sides (Left, Bottom, Right, Top) flattened side-by-side. This allows for easy comparison of surface features across the entire board perimeter.
