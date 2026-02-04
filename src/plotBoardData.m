@@ -93,29 +93,29 @@ function plotBoardData(processedData, config)
                 end
                 
             case 'left'
-                % Left Face: Y=0
+                % Left Face (Swapped to Y=B based on user feedback)
                 [r, c, ~] = size(img);
                 if r > c % Length x Thickness
                      X_corners = [0, 0; L_max, L_max]; 
                      Z_corners = [H, 0; H, 0];         
-                     Y_corners = zeros(2,2);
+                     Y_corners = ones(2,2)*B;
                 else
                      X_corners = [0, L_max; 0, L_max]; 
                      Z_corners = [H, H; 0, 0];         
-                     Y_corners = zeros(2,2);
+                     Y_corners = ones(2,2)*B;
                 end
                 
             case 'right'
-                % Right Face: Y=B.
+                % Right Face (Swapped to Y=0 based on user feedback)
                 [r, c, ~] = size(img);
                 if r > c 
                      X_corners = [0, 0; L_max, L_max];
                      Z_corners = [H, 0; H, 0];
-                     Y_corners = ones(2,2)*B;
+                     Y_corners = zeros(2,2);
                 else
                      X_corners = [0, L_max; 0, L_max];
                      Z_corners = [H, H; 0, 0];
-                     Y_corners = ones(2,2)*B;
+                     Y_corners = zeros(2,2);
                 end
         end
         

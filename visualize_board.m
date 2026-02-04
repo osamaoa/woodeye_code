@@ -6,9 +6,12 @@ addpath(genpath('src'));
 %% Settings
 projectDir = 'M:\WoodEye5_NyStruktur\Musaab_aau_patch1'; 
 
-% Board to visualize (Index or Name)
-% Set to empty [] to select interactively (if implemented) or loop
-targetBoardIndex = 9; 
+% Board to visualize (Index)
+targetBoardIndex = 3; 
+
+% --- Visualization Settings ---
+target_arrows_length = 300; % Fiber density along length
+arrow_scale = 0.2;          % Fiber arrow size (0.5 = Default)
 
 %% Logic
 organizedDir = fullfile(projectDir, 'organized');
@@ -42,16 +45,13 @@ if isfield(loaded, 'currentConfig')
 else
     config = struct('showFigs', true);
 end
-config.target_arrows_length = 300; % Adjust fiber density along length
-config.arrow_scale = 0.3;          % Adjust fiber arrow size (0.5 = Default)
+
+% Override with Visualization Settings (User Priority)
+config.target_arrows_length = target_arrows_length;
+config.arrow_scale = arrow_scale;
 config.showFigs = true;
 
 fprintf('Plotting...\n');
-
-% --- Debug: Print Grid Dimensions ---
-fprintf('Plotting...\n');
-
-% Debug prints removed for cleaner output.
 
 plotBoardData(processedData, config);
 
