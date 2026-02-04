@@ -4,10 +4,10 @@ clear; close all; clc;
 addpath(genpath('src'));
 
 %% Settings
-projectDir = 'M:\WoodEye5_NyStruktur\Musaab_aau_patch1'; 
+projectDir = 'M:\WoodEye5_NyStruktur\Musaab_aau_patch3'; 
 
 % Board to visualize (Index)
-targetBoardIndex = 1; 
+targetBoardIndex = 2; 
 
 % --- Visualization Settings ---
 target_arrows_length = 300; % Fiber density along length
