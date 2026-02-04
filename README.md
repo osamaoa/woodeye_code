@@ -1,4 +1,4 @@
-# WoodEye Data Analysis (Refactored)
+# WoodEye Data Analysis
 
 This project contains a refactored and optimized MATLAB pipeline for processing and visualizing WoodEye scanner data.
 
