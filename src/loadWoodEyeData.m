@@ -94,6 +94,19 @@ function content = readDataFile(basePath, fileName)
         error('File not found'); 
     end
     
+    % DEBUG: Inspect file format
+    if contains(fileName, 'PosXRelative.txt') && contains(basePath, 'Up') 
+        fprintf('DEBUG Reading File: %s\n', filePath);
+        % type(filePath); 
+        % Better: read first line.
+        fid_debug = fopen(filePath, 'rt');
+        l1 = fgetl(fid_debug);
+        l2 = fgetl(fid_debug);
+        fclose(fid_debug);
+        fprintf('DEBUG Header L1: %s\n', l1);
+        fprintf('DEBUG Header L2: %s\n', l2);
+    end
+    
     fid = fopen(filePath, 'rt');
     if fid == -1, error('Cannot open file'); end
     

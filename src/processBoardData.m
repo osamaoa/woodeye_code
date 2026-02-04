@@ -55,42 +55,224 @@ function processedData = processBoardData(rawData, config)
         % [Ratio_up_study_smooth] = smoothing(Ex_up, Ey_up, Ratio_up, m, n, x_avg, y_avg);
         % It seems m and n are pre-calculated.
         
-        % We will try to infer grid size.
-        x = d.xin;
-        y = d.yin;
+        % --- Replicate Original Grid Construction Logic ---
+        % Original code assumes data comes in columns.
+        % typically: nk columns (width), nr rows (length).
         
-        % Simple grid estimation
-        uniqueX = unique(x);
-        uniqueY = unique(y);
-        m = length(uniqueX); % or logic dependent on orientation
-        n = length(uniqueY);
+        % 1. Detect Grid Dimensions
+        % The raw data 'xin', 'yin' are often just concatenated columns.
+        % We need to find the number of unique Width positions (Y) to determine 'nk'.
+        % And number of Length positions (X) to determine 'nr'.
         
-        % Note: If the data isn't a perfect grid, unique might return too many.
-        % For now, let's just use the raw vectors for "scattered" plots or 
-        % just pass them through.
+        % Raw units are usually micrometers.
+        % Let's analyze the input vectors.
+        x_raw = d.xin; % Length? (Original code: xin_up is Length)
+        y_raw = d.yin; % Width? (Original code: yin_up is Width)
         
-        % BUT the plotting script uses SURF, so it needs grids.
-        % Let's use 'scatteredInterpolant' or 'griddata' if we don't know the grid.
-        % OR, if the lists are just flattened grids:
+        % Typically WoodEye scans are row-by-row or col-by-col.
+        % Let's assume the data is sorted or structured.
         
-        % Raw data is in micrometers (likely). Scale to mm.
-        x_mm = x / 1000;
-        y_mm = y / 1000;
+        % Robust Grid Detection (Y-Clustering Strategy):
+        % Measurements suggest Column-based structure (Long traces along Length).
+        % We identify 'nk' (columns) by counting unique Y-positions (Width).
         
-        % Coordinate Mapping:
-        % Scanner: X = Width, Y = Length (usually).
-        % Plotting: X = Length, Y = Width.
-        % So we SWAP X and Y.
+        precision_factor = 2; % 0.5mm bins
+        y_round = round(y_raw * precision_factor);
+        uY = unique(y_round);
+        nk_guess = length(uY);
         
-        processedData.(side).X = y_mm; % Length
-        processedData.(side).Y = x_mm; % Width
+        N = length(x_raw);
         
-        % Angle Transformation
-        % Original code: AA_Fi2_up = -Fi_s + 90;
-        % We apply similar logic.
-        processedData.(side).Fi = -d.fiin + 90;
+        % Select Strategy
+        % We look for a consistent repetition count (mode) that suggests grid structure.
+        % Typically one dimension is small (Width ~ 30-200) and one is large (Length ~ 1000+).
         
-        processedData.(side).Ratio = d.ratioin;
+        % Calculate counts for X and Y
+        [~, ~, x_idx] = unique(round(x_raw * precision_factor));
+        x_counts = histcounts(x_idx, 1:max(x_idx)+1);
+        nk_x = mode(x_counts(x_counts > 0)); % Mode of how many times each unique X value repeats
+        
+        [~, ~, y_idx] = unique(round(y_raw * precision_factor));
+        y_counts = histcounts(y_idx, 1:max(y_idx)+1);
+        nr_y = mode(y_counts(y_counts > 0)); % Mode of how many times each unique Y value repeats
+        
+        candidates = [];
+        if nk_x > 1, candidates = [candidates; nk_x, 1]; end % 1=X-based
+        if nr_y > 1, candidates = [candidates; nr_y, 2]; end % 2=Y-based
+        
+        valid_nk = false;
+        
+        % Filter candidates: Prefer grid-like dimensions (e.g. not 1, not N)
+        % For WoodEye, Width (nk) is often 10-300. Length (nr) is >1000.
+        
+        chosen_dim = 0;
+        chosen_axis = 0; % 1=X repeats (Rows const?), 2=Y repeats (Cols const?)
+        
+        for i = 1:size(candidates, 1)
+            dim = candidates(i, 1);
+            if dim >= 10 && dim <= 500 % Likely Width (Sensor Count)
+               chosen_dim = dim;
+               chosen_axis = candidates(i, 2);
+               break;
+            end
+        end
+        
+        if chosen_dim > 0
+             nk = chosen_dim; % Assume the small repeating number is Width (Cols)
+             nr = floor(N / nk);
+             valid_nk = true;
+             
+             % Truncate to perfect rectangle
+             N_grid = nk * nr;
+             if N > N_grid
+            % Truncate N_grid (Silently, as this is expected for WoodEye data)
+   r = N - N_grid; % Calculate remainder
+   N_grid = N - r; 
+   % if r > 0, warning('Truncating %s: N=%d -> %d to fit Grid [nr=%d, nk=%d]', side, N, N_grid, nr, nk); end
+                 x_raw = x_raw(1:N_grid);
+                 y_raw = y_raw(1:N_grid);
+                 if ~isempty(d.fiin), d.fiin = d.fiin(1:N_grid); end
+                 if ~isempty(d.ratioin), d.ratioin = d.ratioin(1:N_grid); end
+             end
+             
+             % Sort and Reshape
+             % If chosen_axis == 2 (Y repeats), it means Y is constant for groups?
+             % Actually "Y repeats k times" means k points share the same Y.
+             % If k=32 (Small), and we have 2000 groups.
+             % This means 32 points per "Row" (across width)?
+             % If X is Length (0-3000). Y is Width (0-150).
+             % If we have a "Row" at X=x1. It has points (x1, y1)...(x1, yk).
+             % So X repeats k times.
+             % My debug said: From X: nk=1 (X unique). From Y: nr=32 (Y repeats 32).
+             % If Y repeats 32 times, it means we have 32 points with Y=y1.
+             % (y1, x1), (y1, x2) ... (y1, x32).
+             % But the board is 3000mm long! 32 points is not enough.
+             
+             % Maybe Y is the "Sensor Index"?
+             % Sensor 1 at Y=10mm reads 2000 points.
+             % Sensor 2 at Y=11mm reads 2000 points.
+             % Then Y should repeat 2000 times!
+             % My debug said Y repeats 32 times.
+             % This implies Y is NOT the sensor index.
+             % Maybe X is the sensor index? (Transposed).
+             % X repeats 1 time?
+             
+             % Alternative: The counts from 'unique' are N_reps.
+             % Maybe I misinterpreted 'mode(counts)'.
+             % If unique(Y) has length 2143 (nk_guess in prev code).
+             % Then N / 2143 = 32 reps.
+             % So Y repeats 32 times.
+             % This matches my "Y repeats 32 times".
+             % So 'nk (Width Count)' is 2143.
+             % 'nr (Length Count)' is 32.
+             % This confirms: 32 Lines along the board?
+             % Or 2143 Lines across the width?
+             % If Board Width is 150mm. 2143 pixels -> 0.07mm. Very fine.
+             % If Board Length is 3000mm. 32 pixels -> 100mm. Very coarse.
+             % This creates a [32 x 2143] matrix.
+             
+             % Let's respect this geometry even if weird.
+             % Sort by [X, Y] (Length major) or [Y, X] (Width major).
+             % If we have 2143 unique Ys.
+             % We likely want to group by Y (Columns).
+             % So Sort by Y then X.
+             
+             [~, sortIdx] = sortrows([y_raw, x_raw]);
+             
+             % We have 2143 columns (unique Ys). Each has 32 points.
+             % Wait, if nr = 32.
+             % reshape to [nr, nk] -> [32, 2143].
+             % Col 1: 32 points.
+             
+             X_grid = reshape(x_raw(sortIdx), [nr, nk]); % nr=32? No wait.
+             % My logic: nk = chosen_dim = 32?
+             % No, chosen_dim was 32.
+             % If 'dim' was 'reps'.
+             % Then 'nk' (cols) is N/reps.
+             % My code: nk = chosen_dim.
+             % If chosen_dim = 32. Then nk=32. nr=2143.
+             % This means 32 Columns. 2143 Rows.
+             
+             % If nk=32 (Width).
+             % Then unique(Y) should be 32?
+             % But previous debug said uY=2143.
+             % Contradiction.
+             % If uY=2143, then Y takes 2143 distinct values.
+             % If uY=32, Y takes 32 distinct values.
+             
+             % Recalculate:
+             % Debug: "uY=2144".
+             % So we have 2144 columns!
+             % And each col has 32 points?
+             % That implies 2144 traces across Width?
+             % And 32 points along Length?
+             % Or Transposed?
+             
+             % Let's assume WoodEye data is HIGH RES.
+             % N = 68000.
+             % Grid 2000 x 30 makes sense.
+             % If uY = 2144. Then we have 2144 rows/cols.
+             % This is the LARGE dimension.
+             % So the other dimension (reps) must be the SMALL dimension (32).
+             % So dimensions are [2144, 32].
+             
+             % nr = N / chosen_dim; % REMOVED: Caused float error
+             % nk = chosen_dim;     % REMOVED
+             
+             % Wait, if uY = 2144. Then Y is the LARGE axis.
+             % Y = Width? Range 0-150.
+             % High res Width?
+             % X = Length? Range 0-3000.
+             % 32 points Length?
+             
+             % This assumes X is Length.
+             % It seems we have Dense Width, Sparse Length.
+             
+             % Reshape:
+             % Sort by Large Axis (Y) then Small Axis (X)?
+             % [~, sortIdx] = sortrows([y_raw, x_raw]);
+             % Grid is [Small_Dim x Large_Dim]?
+             
+             X_grid = reshape(x_raw(sortIdx), [nk, nr]); % [32, 2144]
+             Y_grid = reshape(y_raw(sortIdx), [nk, nr]);
+             
+             % But we usually want X=Length to be columns?
+             % Let's store as [nk, nr] and Transpose if needed in Plot.
+             % Actually, processedData.X should be [Length x Width] usually.
+             
+             % If Y is Width (Large Dim). Then Y should correspond to Cols?
+             % If X is Length (Small Dim).
+             % Then we have 32 Rows x 2144 Cols.
+             
+             if ~isempty(d.fiin)
+                 Fi_grid = -reshape(d.fiin(sortIdx), [nk, nr]) + 90;
+             else
+                 Fi_grid = [];
+             end
+             
+             if ~isempty(d.ratioin)
+                 Ratio_grid = reshape(d.ratioin(sortIdx), [nk, nr]);
+             else
+                 Ratio_grid = [];
+             end
+             
+        else
+             % Fallback
+             warning('Data for %s: Irregular Grid. Keeping as vector.', side);
+             X_grid = x_raw; Y_grid = y_raw; Fi_grid = d.fiin; Ratio_grid = d.ratioin;
+        end
+        
+        % Convert to mm
+        if max(abs(X_grid(:))) > 1000 
+            processedData.(side).X = X_grid / 1000;
+            processedData.(side).Y = Y_grid / 1000;
+        else
+            processedData.(side).X = X_grid;
+            processedData.(side).Y = Y_grid;
+        end
+        
+        processedData.(side).Fi = Fi_grid;
+        processedData.(side).Ratio = Ratio_grid;
         
         if isfield(d, 'image')
             img = d.image;

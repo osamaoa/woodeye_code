@@ -31,8 +31,8 @@ function plotBoardData(processedData, config)
     L_max = 0;
     for i = 1:length(sides)
         side = sides{i};
-        if isfield(processedData, side) && ~isempty(processedData.(side).X)
-            L_max = max(L_max, max(processedData.(side).X(:)));
+        if isfield(processedData, side) && ~isempty(processedData.(side).Y)
+            L_max = max(L_max, max(processedData.(side).Y(:)));
         elseif isfield(processedData, side) && isfield(processedData.(side), 'Image') && ~isempty(processedData.(side).Image)
              [dim1, dim2, ~] = size(processedData.(side).Image);
              % Verify orientation match with Image dimensions logic below
@@ -189,8 +189,8 @@ function plotBoardData(processedData, config)
                  [dim1, dim2, ~] = size(img);
              end
              
-             if ~isempty(d.X)
-                 L_mm = max(d.X(:));
+             if ~isempty(d.Y)
+                 L_mm = max(d.Y(:));
              else
                  L_mm = dim1; 
              end
@@ -201,11 +201,11 @@ function plotBoardData(processedData, config)
              if isfield(d, 'Ratio') && ~isempty(d.Ratio)
                  val = d.Ratio;
                  if isvector(val) && ~isempty(d.X) && ~isempty(d.Y)
-                      scatter(d.Y + currentXOffset, d.X, 10, val, 'filled');
+                      scatter(d.X + currentXOffset, d.Y, 10, val, 'filled');
                  else
                      x = d.X; y = d.Y;
                      if ~isempty(x) && ~isempty(y)
-                         surface(y + currentXOffset, x, zeros(size(x)), val, 'EdgeColor', 'none', 'FaceColor', 'interp');
+                         surface(x + currentXOffset, y, zeros(size(x)), val, 'EdgeColor', 'none', 'FaceColor', 'interp');
                      end
                  end
              end
@@ -253,8 +253,8 @@ function plotBoardData(processedData, config)
                  img = permute(img, [2 1 3]);
                  [dim1, dim2, ~] = size(img);
              end
-             if ~isempty(d.X)
-                 L_mm = max(d.X(:));
+             if ~isempty(d.Y)
+                 L_mm = max(d.Y(:));
              else
                  L_mm = dim1; 
              end
@@ -262,21 +262,74 @@ function plotBoardData(processedData, config)
         end
         
         if isfield(d, 'Fi') && ~isempty(d.Fi) && ~isempty(d.X) && ~isempty(d.Y)
-            x_q = d.X(:); 
-            y_q = d.Y(:); 
-            fi_q = d.Fi(:);
-            X_plot = y_q + currentXOffset;
-            Y_plot = x_q;
+            x_q = d.X; 
+            y_q = d.Y; 
+            fi_q = d.Fi;
+            X_plot = x_q + currentXOffset;
+            Y_plot = y_q;
             U_plot = sind(fi_q); 
             V_plot = -cosd(fi_q); 
-            stride = 10; 
-            if length(x_q) > 5000, idx = 1:stride:length(x_q); else, idx = 1:length(x_q); end
-            q = quiver(X_plot(idx), Y_plot(idx), U_plot(idx), V_plot(idx));
-            q.Color = 'r'; q.LineWidth = 1;
-            if strcmpi(side, 'Left') || strcmpi(side, 'Right')
-                q.AutoScaleFactor = 0.1;
+            
+            % Grid Subsampling (Restored from Original Logic)
+            % If X/Y/Fi are matrices, we can just subsample rows/cols directly.
+            
+            [nr, nk] = size(d.X);
+            
+            if min(nr, nk) > 1 
+                % It is a Grid (Matrix)
+                % Subsample to achieve visual density
+                
+                % Desired Density
+                % Width: Use ALL available lines (stride_row = 1) as requested.
+                % Length: Use target_arrows_length (default 100).
+                
+                stride_row = 1; 
+                if isfield(config, 'target_arrows_length'), target_cols = config.target_arrows_length; else, target_cols = 100; end
+                
+                stride_col = max(1, floor(nk / target_cols));
+                
+                % Limit total arrows (Safety)
+                % Increased limit since user wants full resolution
+                total_est = (nr/stride_row) * (nk/stride_col); 
+                limit_arrows = 20000; 
+                
+                if total_est > limit_arrows
+                    % Only increase stride_col (Length) to meet limit, preserving width resolution
+                    % total = nr * (nk / new_stride_col) <= limit
+                    % new_stride_col >= (nr * nk) / limit
+                    stride_col = ceil((nr * nk) / limit_arrows);
+                end
+                
+                % Create indices
+                row_idx = 1:stride_row:nr;
+                col_idx = 1:stride_col:nk;
+                
+                % Extract grid points
+                X_sub = X_plot(row_idx, col_idx);
+                Y_sub = Y_plot(row_idx, col_idx);
+                U_sub = U_plot(row_idx, col_idx);
+                V_sub = V_plot(row_idx, col_idx);
+                
+                % Flatten for quiver
+                q = quiver(X_sub(:), Y_sub(:), U_sub(:), V_sub(:));
+                
             else
-                q.AutoScaleFactor = 0.2;
+                % Vector Data (Linear Stride)
+                stride = 10;
+                if length(d.X) > 5000, stride = ceil(length(d.X)/4000); end
+                idx = 1:stride:length(d.X);
+                q = quiver(X_plot(idx), Y_plot(idx), U_plot(idx), V_plot(idx));
+            end
+            
+            q.Color = 'r'; q.LineWidth = 1;
+            % Adjust Arrow Scale
+            base_scale = 0.5; % Default Larger
+            if isfield(config, 'arrow_scale'), base_scale = config.arrow_scale; end
+            
+            if strcmpi(side, 'Left') || strcmpi(side, 'Right')
+                q.AutoScaleFactor = base_scale / 2;
+            else
+                q.AutoScaleFactor = base_scale;
             end 
         end
         text(currentXOffset + sideW/2, -100, side, 'Color', 'k', 'FontWeight', 'bold', 'HorizontalAlignment', 'center');

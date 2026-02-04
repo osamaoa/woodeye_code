@@ -12,7 +12,7 @@ config = struct();
 
 % --- Input Paths ---
 % Path to the project root folder
-config.projectDir = 'M:\WoodEye5_NyStruktur\Musaab_aau_patch3'; 
+config.projectDir = 'M:\WoodEye5_NyStruktur\Musaab_aau_patch1'; 
 
 % --- Image Appearance Settings ---
 config.clean_shift_px = 75;       % Pixels to crop significantly from top/bottom
@@ -37,6 +37,10 @@ config.cancel_black_edges = 10;   % Width of edge region (mm) to check for artif
 % --- Visualization Settings ---
 config.showFigs = false;   % 1 = Show figures during this run
 config.pauseFigs = false;  % 1 = Pause after each board to view figures
+
+% Fiber Plotting Density
+config.target_arrows_length = 300; % Adjust fiber density along length
+config.arrow_scale = 0.5;          % Adjust fiber arrow size
 
 %% 3. Run Analysis
 % Calls the engine to process all boards and save results.

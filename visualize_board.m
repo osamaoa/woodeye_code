@@ -1,15 +1,14 @@
-% VISUALIZE_BOARD
 % Utility to load and visualize saved WoodEye data without re-processing.
 
 clear; close all; clc;
 addpath(genpath('src'));
 
 %% Settings
-projectDir = 'M:\WoodEye5_NyStruktur\Musaab_aau_patch3'; 
+projectDir = 'M:\WoodEye5_NyStruktur\Musaab_aau_patch1'; 
 
 % Board to visualize (Index or Name)
 % Set to empty [] to select interactively (if implemented) or loop
-targetBoardIndex = 8; 
+targetBoardIndex = 9; 
 
 %% Logic
 organizedDir = fullfile(projectDir, 'organized');
@@ -27,28 +26,33 @@ end
 boardDir = fullfile(organizedDir, boardName);
 dataFile = fullfile(boardDir, 'processedData.mat');
 
-if ~exist(dataFile, 'file')
-    error('Data file not found: %s. \n  Possible reasons:\n  - Run main.m to process data first.\n  - Check board index.', dataFile);
+% Check if processed data exists
+if ~exist(dataFile, 'file') 
+    error('Data file not found: %s.\nPlease run main.m to process the board data first.', dataFile);
 end
 
-%% Load and Plot
-fprintf('Loading data for %s...\n', boardName);
+fprintf('Loading saved data for %s...\n', boardName);
 loaded = load(dataFile); % contains 'processedData' and 'currentConfig'
-
 if ~isfield(loaded, 'processedData')
     error('File does not contain processedData.');
 end
-
 processedData = loaded.processedData;
 if isfield(loaded, 'currentConfig')
     config = loaded.currentConfig;
 else
-    % Fallback config if missing
     config = struct('showFigs', true);
 end
-config.showFigs = true; % Force on
+config.target_arrows_length = 300; % Adjust fiber density along length
+config.arrow_scale = 0.3;          % Adjust fiber arrow size (0.5 = Default)
+config.showFigs = true;
 
 fprintf('Plotting...\n');
+
+% --- Debug: Print Grid Dimensions ---
+fprintf('Plotting...\n');
+
+% Debug prints removed for cleaner output.
+
 plotBoardData(processedData, config);
 
 fprintf('Done.\n');
