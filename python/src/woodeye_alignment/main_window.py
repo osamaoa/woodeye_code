@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 from pathlib import Path
 from typing import cast
 
@@ -69,6 +70,7 @@ class MainWindow(QMainWindow):
     def _build_actions(self) -> None:
         self.load_optical_action = QAction("Load optical...", self)
         self.load_ct_action = QAction("Load CT...", self)
+        self.clear_scans_action = QAction("Clear scans", self)
         self.add_pair_action = QAction("Add pair", self)
         self.add_pair_action.setShortcut(QKeySequence("A"))
         self.delete_action = QAction("Delete selected", self)
@@ -89,6 +91,7 @@ class MainWindow(QMainWindow):
         for action in [
             self.load_optical_action,
             self.load_ct_action,
+            self.clear_scans_action,
             self.add_pair_action,
             self.delete_action,
             self.clear_action,
@@ -189,6 +192,7 @@ class MainWindow(QMainWindow):
     def _wire_signals(self) -> None:
         self.load_optical_action.triggered.connect(self.load_optical)
         self.load_ct_action.triggered.connect(self.load_ct)
+        self.clear_scans_action.triggered.connect(self.clear_scans)
         self.add_pair_action.triggered.connect(self.add_pair)
         self.delete_action.triggered.connect(self.delete_selected)
         self.clear_action.triggered.connect(self.clear_points)
@@ -238,6 +242,36 @@ class MainWindow(QMainWindow):
         self.ct_label.setText(f"CT: {path.name}")
         self.ct_view.set_image(self.ct_image)
         self._update_status("Loaded CT image")
+
+    def clear_scans(self) -> None:
+        if self._export_thread is not None and self._export_thread.isRunning():
+            QMessageBox.information(
+                self,
+                "Export running",
+                "Wait for export to finish before clearing scans.",
+            )
+            return
+        self.optical_image = None
+        self.ct_image = None
+        self.optical_path = None
+        self.ct_path = None
+        self.fixed_pts.clear()
+        self.moving_pts.clear()
+        self.placement_state = None
+        self.pending_fixed = None
+        self._invalidate_fit()
+        self.optical_label.setText("Optical: -")
+        self.ct_label.setText("CT: -")
+        self.optical_view.clear()
+        self.ct_view.clear()
+        self.verify_view.clear()
+        self.table_model.set_points([], [], [], [])
+        self.residuals_plot.set_residuals([])
+        self.stack.setCurrentIndex(0)
+        self.mark_button.setChecked(True)
+        self.progress.setVisible(False)
+        gc.collect()
+        self._update_status("Cleared loaded scans and released image memory")
 
     def add_pair(self) -> None:
         if self.optical_image is None or self.ct_image is None:
@@ -356,6 +390,18 @@ class MainWindow(QMainWindow):
         if self.fit is None or not self.fit.ok or self.fit.tform is None:
             QMessageBox.information(self, "Fit required", "Compute a valid transform first.")
             return
+        quality_warning = self._training_quality_warning()
+        if quality_warning is not None:
+            response = QMessageBox.warning(
+                self,
+                "Alignment quality warning",
+                quality_warning,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Cancel,
+            )
+            if response != QMessageBox.StandardButton.Yes:
+                self._update_status("Export cancelled because alignment quality is poor")
+                return
         if self.output_root is None:
             self.pick_output()
             if self.output_root is None:
@@ -456,6 +502,25 @@ class MainWindow(QMainWindow):
         self.fit = None
         self.residuals = []
         self.residuals_plot.set_residuals([])
+
+    def _training_quality_warning(self) -> str | None:
+        if self.fit is None or not self.fit.ok:
+            return None
+        issues: list[str] = []
+        if self.fit.rms > 3.0:
+            issues.append(f"RMS is {self.fit.rms:.2f} px; target for training is under 3 px.")
+        if self.fit.max_resid > 5.0:
+            issues.append(
+                f"Max residual is {self.fit.max_resid:.2f} px; points above 5 px are outliers."
+            )
+        if not issues:
+            return None
+        issue_text = "\n".join(f"- {issue}" for issue in issues)
+        return (
+            "This alignment is likely too loose for paired training patches.\n\n"
+            f"{issue_text}\n\n"
+            "Add or fix control points and recompute before exporting. Continue anyway?"
+        )
 
     def _pick_image(self, title: str) -> Path | None:
         path_text, _filter = QFileDialog.getOpenFileName(

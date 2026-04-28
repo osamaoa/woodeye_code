@@ -136,6 +136,13 @@ def residual_status(residuals: npt.ArrayLike) -> list[str]:
     values = np.asarray(residuals, dtype=np.float64)
     if values.size == 0:
         return []
-    median = float(np.median(values))
-    threshold = max(5.0, 3.0 * median)
-    return ["outlier" if float(value) >= threshold else "ok" for value in values]
+    statuses: list[str] = []
+    for value in values:
+        residual = float(value)
+        if residual < 2.0:
+            statuses.append("ok")
+        elif residual < 5.0:
+            statuses.append("review")
+        else:
+            statuses.append("outlier")
+    return statuses

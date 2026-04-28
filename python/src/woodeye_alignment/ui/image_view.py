@@ -20,8 +20,10 @@ class ImageView(QWidget):
         self._view = self._plot.addViewBox(lockAspect=True)
         self._view.invertY(True)
         self._image_item = pg.ImageItem(axisOrder="row-major")
+        self._image_item.setZValue(-10)
         self._view.addItem(self._image_item)
         self._scatter = pg.ScatterPlotItem()
+        self._scatter.setZValue(10)
         self._view.addItem(self._scatter)
         self._labels: list[pg.TextItem] = []
         layout = QVBoxLayout(self)
@@ -40,8 +42,11 @@ class ImageView(QWidget):
 
     def clear(self) -> None:
         self._image_shape = None
-        self._image_item.clear()
         self.set_points([])
+        self._view.removeItem(self._image_item)
+        self._image_item = pg.ImageItem(axisOrder="row-major")
+        self._image_item.setZValue(-10)
+        self._view.addItem(self._image_item)
 
     def set_points(self, points: list[tuple[float, float]], selected: int | None = None) -> None:
         for label in self._labels:

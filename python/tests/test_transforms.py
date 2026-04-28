@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 from skimage.transform import SimilarityTransform
 
-from woodeye_alignment.core.transforms import fit_transform
+from woodeye_alignment.core.transforms import fit_transform, residual_status
 
 
 def test_similarity_fit_recovers_known_points() -> None:
@@ -31,3 +31,13 @@ def test_rejects_colinear_affine_points() -> None:
     result = fit_transform(moving, fixed, "affine")
     assert not result.ok
     assert "colinear" in result.message
+
+
+def test_residual_status_uses_training_thresholds() -> None:
+    assert residual_status([1.99, 2.0, 4.99, 5.0, 133.0]) == [
+        "ok",
+        "review",
+        "review",
+        "outlier",
+        "outlier",
+    ]

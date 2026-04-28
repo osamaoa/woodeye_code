@@ -64,7 +64,11 @@ class PointsTableModel(QAbstractTableModel):
         col = index.column()
         if role == int(Qt.ItemDataRole.DisplayRole):
             return self._display(row, col)
-        if role == int(Qt.ItemDataRole.BackgroundRole) and col == 5 and row < len(self.residuals):
+        if (
+            role == int(Qt.ItemDataRole.BackgroundRole)
+            and col in (5, 6)
+            and row < len(self.residuals)
+        ):
             value = self.residuals[row]
             if value < 2.0:
                 return QColor(199, 233, 192)
