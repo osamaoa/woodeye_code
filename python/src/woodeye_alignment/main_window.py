@@ -33,6 +33,7 @@ from woodeye_alignment.core.feature_snap import FeaturePolarity, snap_to_feature
 from woodeye_alignment.core.filename_parser import parse_face_and_beam_id
 from woodeye_alignment.core.io import ImageArray, read_image
 from woodeye_alignment.core.points_io import load_points, make_points_file, save_points
+from woodeye_alignment.core.region import outline_centroid
 from woodeye_alignment.core.schemas import FaceName, SplitName, TransformType
 from woodeye_alignment.core.transforms import FitResult, fit_transform, residual_status
 from woodeye_alignment.core.warp import warp_to_reference
@@ -75,6 +76,8 @@ class MainWindow(QMainWindow):
         self.clear_scans_action = QAction("Clear scans", self)
         self.add_pair_action = QAction("Add pair", self)
         self.add_pair_action.setShortcut(QKeySequence("A"))
+        self.add_region_pair_action = QAction("Add region pair", self)
+        self.add_region_pair_action.setShortcut(QKeySequence("R"))
         self.delete_action = QAction("Delete selected", self)
         self.delete_action.setShortcut(QKeySequence.StandardKey.Delete)
         self.clear_action = QAction("Clear all", self)
@@ -95,6 +98,7 @@ class MainWindow(QMainWindow):
             self.load_ct_action,
             self.clear_scans_action,
             self.add_pair_action,
+            self.add_region_pair_action,
             self.delete_action,
             self.clear_action,
             self.compute_action,
@@ -205,6 +209,7 @@ class MainWindow(QMainWindow):
         self.load_ct_action.triggered.connect(self.load_ct)
         self.clear_scans_action.triggered.connect(self.clear_scans)
         self.add_pair_action.triggered.connect(self.add_pair)
+        self.add_region_pair_action.triggered.connect(self.add_region_pair)
         self.delete_action.triggered.connect(self.delete_selected)
         self.clear_action.triggered.connect(self.clear_points)
         self.compute_action.triggered.connect(self.compute_fit)
@@ -214,6 +219,8 @@ class MainWindow(QMainWindow):
         self.generate_action.triggered.connect(self.generate)
         self.optical_view.clicked.connect(self._optical_clicked)
         self.ct_view.clicked.connect(self._ct_clicked)
+        self.optical_view.region_drawn.connect(self._optical_region_drawn)
+        self.ct_view.region_drawn.connect(self._ct_region_drawn)
         self.mode_group.idClicked.connect(self._mode_clicked)
         selection_model = self.points_table.selectionModel()
         if selection_model is not None:
@@ -270,6 +277,7 @@ class MainWindow(QMainWindow):
         self.moving_pts.clear()
         self.placement_state = None
         self.pending_fixed = None
+        self._set_region_drawing(None)
         self._invalidate_fit()
         self.optical_label.setText("Optical: -")
         self.ct_label.setText("CT: -")
@@ -292,9 +300,23 @@ class MainWindow(QMainWindow):
                 "Load both optical and CT images first.",
             )
             return
+        self._set_region_drawing(None)
         self.placement_state = "optical"
         self.pending_fixed = None
         self._update_status("Click the optical knot")
+
+    def add_region_pair(self) -> None:
+        if self.optical_image is None or self.ct_image is None:
+            QMessageBox.information(
+                self,
+                "Images required",
+                "Load both optical and CT images first.",
+            )
+            return
+        self.placement_state = "region_optical"
+        self.pending_fixed = None
+        self._set_region_drawing("optical")
+        self._update_status("Drag around the optical knot border, then release")
 
     def _optical_clicked(self, x_pos: float, y_pos: float) -> None:
         if self.placement_state != "optical":
@@ -314,6 +336,33 @@ class MainWindow(QMainWindow):
         self._invalidate_fit()
         self._refresh_points()
         self._update_status("Point pair added")
+
+    def _optical_region_drawn(self, points: object) -> None:
+        if self.placement_state != "region_optical":
+            return
+        outline = cast(list[tuple[float, float]], points)
+        self.pending_fixed = outline_centroid(outline)
+        self.placement_state = "region_ct"
+        self._set_region_drawing("ct")
+        self._update_status("Drag around the matching CT knot border, then release")
+
+    def _ct_region_drawn(self, points: object) -> None:
+        if self.placement_state != "region_ct" or self.pending_fixed is None:
+            return
+        outline = cast(list[tuple[float, float]], points)
+        moving_centroid = outline_centroid(outline)
+        self.fixed_pts.append(self.pending_fixed)
+        self.moving_pts.append(moving_centroid)
+        self.placement_state = None
+        self.pending_fixed = None
+        self._set_region_drawing(None)
+        self._invalidate_fit()
+        self._refresh_points()
+        self._update_status("Region point pair added from outline centroids")
+
+    def _set_region_drawing(self, active_view: str | None) -> None:
+        self.optical_view.set_region_drawing_enabled(active_view == "optical")
+        self.ct_view.set_region_drawing_enabled(active_view == "ct")
 
     def _maybe_snap(
         self,

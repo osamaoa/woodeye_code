@@ -46,3 +46,9 @@ Use knots that are bright, sharp, and visible in both modalities. Spread control
 Enable **Snap placed clicks** in the settings dock before adding point pairs. The app moves each click to the local high-contrast centroid inside the configured radius.
 
 Use **Snap polarity: auto** unless you know the knot core is always bright or always dark in the current image. If snapping jumps to the wrong nearby feature, reduce the snap radius and place the click closer to the knot center.
+
+## Region Point Pairs
+
+Click **Add region pair** or press `R` when a knot center is ambiguous. Drag around the knot border in the optical image, release, then drag around the matching knot border in the CT image. The app adds one point pair using the centroid of each drawn outline.
+
+Use this for broad knots or CT halos where a single click is hard to place consistently. The computed transform still uses point landmarks, but those points come from the drawn knot outlines.
