@@ -8,6 +8,7 @@ from PyQt6.QtCore import QItemSelection, QItemSelectionModel, Qt, QThread
 from PyQt6.QtGui import QAction, QCloseEvent, QKeySequence
 from PyQt6.QtWidgets import (
     QButtonGroup,
+    QCheckBox,
     QComboBox,
     QDockWidget,
     QFileDialog,
@@ -28,6 +29,7 @@ from PyQt6.QtWidgets import (
 )
 
 from woodeye_alignment.core.export import ExportConfig, ExportResult
+from woodeye_alignment.core.feature_snap import FeaturePolarity, snap_to_feature_centroid
 from woodeye_alignment.core.filename_parser import parse_face_and_beam_id
 from woodeye_alignment.core.io import ImageArray, read_image
 from woodeye_alignment.core.points_io import load_points, make_points_file, save_points
@@ -163,12 +165,21 @@ class MainWindow(QMainWindow):
         self.face_combo.addItems(["Top", "Bottom", "Left", "Right"])
         self.split_combo = QComboBox()
         self.split_combo.addItems(["train", "val", "test"])
+        self.snap_check = QCheckBox("Snap placed clicks")
+        self.snap_radius_spin = QSpinBox()
+        self.snap_radius_spin.setRange(3, 100)
+        self.snap_radius_spin.setValue(25)
+        self.snap_polarity_combo = QComboBox()
+        self.snap_polarity_combo.addItems(["auto", "bright", "dark"])
         self.residuals_plot = ResidualsPlot()
         settings_layout.addRow("Transform", self.transform_combo)
         settings_layout.addRow("Stride", self.stride_spin)
         settings_layout.addRow("Patch", self.patch_spin)
         settings_layout.addRow("Face", self.face_combo)
         settings_layout.addRow("Split", self.split_combo)
+        settings_layout.addRow("Snap", self.snap_check)
+        settings_layout.addRow("Snap radius", self.snap_radius_spin)
+        settings_layout.addRow("Snap polarity", self.snap_polarity_combo)
         settings_layout.addRow("Residuals", self.residuals_plot)
         settings_dock = QDockWidget("Settings", self)
         settings_dock.setWidget(settings)
@@ -288,20 +299,46 @@ class MainWindow(QMainWindow):
     def _optical_clicked(self, x_pos: float, y_pos: float) -> None:
         if self.placement_state != "optical":
             return
-        self.pending_fixed = (x_pos, y_pos)
+        self.pending_fixed = self._maybe_snap(self.optical_image, x_pos, y_pos, "optical")
         self.placement_state = "ct"
         self._update_status("Click the matching CT knot")
 
     def _ct_clicked(self, x_pos: float, y_pos: float) -> None:
         if self.placement_state != "ct" or self.pending_fixed is None:
             return
+        snapped_ct = self._maybe_snap(self.ct_image, x_pos, y_pos, "CT")
         self.fixed_pts.append(self.pending_fixed)
-        self.moving_pts.append((x_pos, y_pos))
+        self.moving_pts.append(snapped_ct)
         self.placement_state = None
         self.pending_fixed = None
         self._invalidate_fit()
         self._refresh_points()
         self._update_status("Point pair added")
+
+    def _maybe_snap(
+        self,
+        image: ImageArray | None,
+        x_pos: float,
+        y_pos: float,
+        label: str,
+    ) -> tuple[float, float]:
+        if image is None or not self.snap_check.isChecked():
+            return (x_pos, y_pos)
+        result = snap_to_feature_centroid(
+            image,
+            x_pos,
+            y_pos,
+            radius=self.snap_radius_spin.value(),
+            polarity=cast(FeaturePolarity, self.snap_polarity_combo.currentText()),
+        )
+        if result.did_snap:
+            dx = result.snapped[0] - result.original[0]
+            dy = result.snapped[1] - result.original[1]
+            self._update_status(
+                f"Snapped {label} point by dx={dx:.1f}, dy={dy:.1f} "
+                f"({result.polarity}, score={result.score:.1f})"
+            )
+        return result.snapped
 
     def compute_fit(self) -> None:
         transform_type = cast(TransformType, self.transform_combo.currentText())

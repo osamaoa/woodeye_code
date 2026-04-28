@@ -40,3 +40,9 @@ Batch mode writes `batch_results.csv` in the output root and continues to the ne
 ## Landmark Quality
 
 Use knots that are bright, sharp, and visible in both modalities. Spread control points along both beam length and width; colinear point sets are rejected for affine and projective fits.
+
+## Snap-To-Feature
+
+Enable **Snap placed clicks** in the settings dock before adding point pairs. The app moves each click to the local high-contrast centroid inside the configured radius.
+
+Use **Snap polarity: auto** unless you know the knot core is always bright or always dark in the current image. If snapping jumps to the wrong nearby feature, reduce the snap radius and place the click closer to the knot center.
