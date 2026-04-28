@@ -1,0 +1,9 @@
+{
+  "tform_type": "similarity",
+  "stride": 256,
+  "patch_size": 512,
+  "snap_radius": 25,
+  "snap_enabled": false,
+  "magnifier_enabled": false,
+  "linked_zoom_enabled": false
+}
